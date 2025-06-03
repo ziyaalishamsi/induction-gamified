@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 20 14.3% 4.1%;
+  --muted: 60 4.8% 95.9%;
+  --muted-foreground: 25 5.3% 44.7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14.3% 4.1%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14.3% 4.1%;
+  --border: 20 5.9% 90%;
+  --input: 20 5.9% 90%;
+  --primary: 207 90% 54%; /* Citi blue */
+  --primary-foreground: 211 100% 99%;
+  --secondary: 60 4.8% 95.9%;
+  --secondary-foreground: 24 9.8% 10%;
+  --accent: 60 4.8% 95.9%;
+  --accent-foreground: 24 9.8% 10%;
+  --destructive: 0 84.2% 60.2%; /* Citi red */
+  --destructive-foreground: 60 9.1% 97.8%;
+  --ring: 20 14.3% 4.1%;
+  --radius: 0.5rem;
+
+  /* Citi specific colors */
+  --citi-blue: 207 90% 35%;
+  --citi-light-blue: 207 90% 54%;
+  --citi-red: 359 84% 53%;
+  --citi-gold: 51 100% 50%;
+  --citi-navy: 213 56% 24%;
+  --citi-light: 210 33% 96%;
+
+  /* Chart colors */
+  --chart-1: var(--citi-blue);
+  --chart-2: var(--citi-red);
+  --chart-3: var(--citi-gold);
+  --chart-4: 150 84% 39%;
+  --chart-5: 271 91% 65%;
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom styles for game-specific elements */
+.game-card {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.game-card:hover {
+  @apply -translate-y-1 shadow-lg;
+}
+
+.map-location {
+  @apply transition-all duration-200 ease-in-out cursor-pointer;
+}
+
+.map-location:hover {
+  @apply scale-105 brightness-110;
+}
+
+.progress-bar {
+  @apply transition-all duration-1000 ease-in-out;
+}
+
+.badge {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.badge:hover {
+  @apply scale-110 rotate-3;
+}
+
+.character-part {
+  @apply transition-all duration-200 ease-in-out cursor-pointer;
+}
+
+.character-part:hover {
+  @apply scale-105;
+}
+
+.quiz-option {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.quiz-option:hover:not(.selected):not(.correct):not(.incorrect) {
+  @apply bg-primary/10;
+}
+
+.quiz-option.selected {
+  @apply bg-primary text-white;
+}
+
+.quiz-option.correct {
+  @apply bg-green-500 text-white;
+}
+
+.quiz-option.incorrect {
+  @apply bg-destructive text-white;
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 102, 179, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 102, 179, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 102, 179, 0);
+  }
+}
