@@ -1,0 +1,93 @@
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "@/pages/not-found";
+import Layout from "@/components/Layout";
+import Home from "@/pages/Home";
+
+import Missions from "@/pages/Missions";
+import Rewards from "@/pages/Rewards";
+import Games from "@/pages/Games";
+import AdminDashboard from "@/pages/AdminDashboard";
+import HRDashboard from "@/pages/HRDashboard";
+import { GameStateProvider } from "./contexts/GameStateContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import TrainingModule from "./pages/TrainingModule";
+
+function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location, navigate] = useLocation();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <div className="w-4 h-4 bg-white rounded-full animate-ping"></div>
+          </div>
+          <p>Loading your quest...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    // Store intended destination for redirect after login
+    if (location !== "/cityofciti/login") {
+      localStorage.setItem("intendedDestination", location);
+    }
+    // Use setTimeout to avoid React setState during render warning
+    setTimeout(() => navigate("/cityofciti/login"), 0);
+    return null;
+  }
+  
+  return <Component />;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/cityofciti/login" component={Login} />
+      <Route path="/cityofciti/register" component={Register} />
+      <Route path="/cityofciti/admin" component={() => <ProtectedRoute component={AdminDashboard} />} />
+      <Route path="/cityofciti/hr" component={() => <ProtectedRoute component={HRDashboard} />} />
+      <Route path="/cityofciti/training/:moduleId" component={() => <ProtectedRoute component={TrainingModule} />} />
+      <Route path="/cityofciti/" component={() => <ProtectedRoute component={Home} />} />
+
+      <Route path="/cityofciti/missions" component={() => <ProtectedRoute component={Missions} />} />
+      <Route path="/cityofciti/games" component={() => <ProtectedRoute component={Games} />} />
+      <Route path="/cityofciti/rewards" component={() => <ProtectedRoute component={Rewards} />} />
+      <Route path="/login">
+        <Redirect to="/cityofciti/login" />
+      </Route>
+      <Route path="/register">
+        <Redirect to="/cityofciti/register" />
+      </Route>
+      <Route path="/" component={() => <ProtectedRoute component={Home} />} />
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <GameStateProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <Layout>
+              <Router />
+            </Layout>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </GameStateProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;
