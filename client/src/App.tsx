@@ -1,4 +1,5 @@
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import React from "react";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -17,10 +18,10 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import TrainingModule from "./pages/TrainingModule";
+import OnboardingDashboard from "./pages/OnboardingDashboard";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const [location, navigate] = useLocation();
   
   if (isLoading) {
     return (
@@ -36,16 +37,20 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }
   
   if (!isAuthenticated) {
-    // Store intended destination for redirect after login
-    if (location !== "/cityofciti/login") {
-      localStorage.setItem("intendedDestination", location);
-    }
-    // Use setTimeout to avoid React setState during render warning
-    setTimeout(() => navigate("/cityofciti/login"), 0);
-    return null;
+    return <Login />;
   }
   
   return <Component />;
+}
+
+function RedirectComponent({ to }: { to: string }) {
+  const [, navigate] = useLocation();
+  
+  React.useEffect(() => {
+    navigate(to);
+  }, [navigate, to]);
+  
+  return null;
 }
 
 function Router() {
@@ -55,18 +60,15 @@ function Router() {
       <Route path="/cityofciti/register" component={Register} />
       <Route path="/cityofciti/admin" component={() => <ProtectedRoute component={AdminDashboard} />} />
       <Route path="/cityofciti/hr" component={() => <ProtectedRoute component={HRDashboard} />} />
+      <Route path="/cityofciti/onboarding" component={() => <ProtectedRoute component={OnboardingDashboard} />} />
       <Route path="/cityofciti/training/:moduleId" component={() => <ProtectedRoute component={TrainingModule} />} />
       <Route path="/cityofciti/" component={() => <ProtectedRoute component={Home} />} />
 
       <Route path="/cityofciti/missions" component={() => <ProtectedRoute component={Missions} />} />
       <Route path="/cityofciti/games" component={() => <ProtectedRoute component={Games} />} />
       <Route path="/cityofciti/rewards" component={() => <ProtectedRoute component={Rewards} />} />
-      <Route path="/login">
-        <Redirect to="/cityofciti/login" />
-      </Route>
-      <Route path="/register">
-        <Redirect to="/cityofciti/register" />
-      </Route>
+      <Route path="/login" component={() => <RedirectComponent to="/cityofciti/login" />} />
+      <Route path="/register" component={() => <RedirectComponent to="/cityofciti/register" />} />
       <Route path="/" component={() => <ProtectedRoute component={Home} />} />
       <Route component={NotFound} />
     </Switch>

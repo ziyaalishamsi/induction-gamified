@@ -22,6 +22,7 @@ export interface IStorage {
   getUser(id: string): Promise<IUser | undefined>;
   getUserByUsername(username: string): Promise<IUser | undefined>;
   createUser(user: InsertUser): Promise<IUser>;
+  getAllUsers(): Promise<IUser[]>;
   
   // User progress operations
   getUserProgress(userId: string): Promise<IUserProgress | undefined>;
@@ -98,6 +99,10 @@ export class MemStorage implements IStorage {
     
     this.userStore.set(user._id, user);
     return user;
+  }
+
+  async getAllUsers(): Promise<IUser[]> {
+    return Array.from(this.userStore.values());
   }
 
   async getUserProgress(userId: string): Promise<IUserProgress | undefined> {
@@ -275,6 +280,15 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
+    }
+  }
+
+  async getAllUsers(): Promise<IUser[]> {
+    try {
+      return await User.find({});
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
     }
   }
 

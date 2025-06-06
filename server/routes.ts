@@ -70,30 +70,31 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     next();
   };
 
-  // Auth check route
+  // Auth check route - consolidated
   app.get('/cityofciti/api/auth/me', async (req, res) => {
     const session = req.session as any;
     
     if (!session.userId) {
-      return res.status(401).json({ error: "Not authenticated" });
+      return res.status(401).json({ message: "Not authenticated" });
     }
     
     try {
       const user = await storage.getUser(session.userId);
       if (!user) {
-        return res.status(401).json({ error: "User not found" });
+        return res.status(401).json({ message: "User not found" });
       }
       
       const progress = await storage.getUserProgress(session.userId);
       
       res.json({
         user: {
-          id: user.id,
+          id: user._id.toString(),
           username: user.username,
           name: user.name,
           department: user.department,
           role: user.role,
-          experience: user.experience
+          experience: user.experience,
+          avatar: user.avatar
         },
         progress: progress || {
           level: 1,
@@ -105,7 +106,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
       });
     } catch (error) {
       console.error("Error fetching user data:", error);
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json({ message: "Internal server error" });
     }
   });
 
@@ -207,38 +208,7 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
-  app.get('/cityofciti/api/auth/me', requireAuth, async (req, res) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
 
-      const progress = await storage.getUserProgress(user._id);
-
-      res.json({
-        user: {
-          id: user._id.toString(),
-          username: user.username,
-          name: user.name,
-          department: user.department,
-          role: user.role,
-          experience: user.experience,
-          avatar: user.avatar
-        },
-        progress: progress || {
-          level: 1,
-          xp: 0,
-          completedMissions: [],
-          completedQuizzes: [],
-          unlockedLocations: ['btss']
-        }
-      });
-    } catch (error) {
-      console.error('Get user error:', error);
-      res.status(500).json({ message: "Failed to get user" });
-    }
-  });
 
   app.post('/cityofciti/api/auth/logout', (req, res) => {
     req.session.destroy((err) => {
@@ -839,6 +809,76 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
     }
   });
 
+  // Admin endpoints for user management
+  app.get('/api/admin/users', requireAuth, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const usersWithProgress = await Promise.all(
+        users.map(async (user) => {
+          const progress = await storage.getUserProgress(user._id);
+          return {
+            id: user._id.toString(),
+            username: user.username,
+            name: user.name,
+            department: user.department,
+            role: user.role,
+            experience: user.experience,
+            createdAt: user.createdAt,
+            progress: progress ? {
+              level: progress.level,
+              xp: progress.xp,
+              completedMissions: progress.completedMissions,
+              trainingStartTime: progress.trainingStartTime
+            } : null
+          };
+        })
+      );
+      res.json(usersWithProgress);
+    } catch (error) {
+      console.error('Get all users error:', error);
+      res.status(500).json({ message: "Failed to get users" });
+    }
+  });
+
+  app.post('/api/admin/users/:userId/reset-timer', requireAuth, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const adminUserId = req.session.userId!;
+      
+      // Verify admin permissions
+      const adminUser = await storage.getUser(adminUserId);
+      if (!adminUser || adminUser.role !== 'Admin') {
+        return res.status(403).json({ message: "Insufficient permissions" });
+      }
+
+      // Reset the user's training timer
+      await storage.updateUserProgress(userId, {
+        trainingStartTime: new Date()
+      });
+
+      res.json({ success: true, message: "Timer reset successfully" });
+    } catch (error) {
+      console.error('Reset timer error:', error);
+      res.status(500).json({ message: "Failed to reset timer" });
+    }
+  });
+
+  app.post('/api/user/progress/update-start-time', requireAuth, async (req, res) => {
+    try {
+      const { trainingStartTime } = req.body;
+      const userId = req.session.userId!;
+      
+      await storage.updateUserProgress(userId, {
+        trainingStartTime: new Date(trainingStartTime)
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Update start time error:', error);
+      res.status(500).json({ message: "Failed to update start time" });
+    }
+  });
+
   // HR Analytics endpoints for dashboard
   app.get('/cityofciti/api/hr/analytics/overview', async (req, res) => {
     try {
@@ -1160,6 +1200,214 @@ export async function registerRoutes(app: express.Express): Promise<Server> {
   // Serve uploaded files
   app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
   app.use('/scorm-packages', express.static(path.join(process.cwd(), 'public/scorm-packages')));
+
+  // Comprehensive Onboarding API routes
+  app.get('/api/onboarding/resources', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      const userPersona = user?.persona || 'employee';
+      
+      const resources = [
+        {
+          id: '1',
+          category: 'contact',
+          title: 'Important Email Contacts',
+          description: 'Key email addresses for various departments and services',
+          content: 'IT Support: it-support@citi.com\nHR Team: hr-team@citi.com\nSecurity: security@citi.com\nFacilities: facilities@citi.com',
+          contactEmail: 'hr-team@citi.com',
+          targetPersona: ['employee', 'manager', 'director'],
+          priority: 'high',
+          icon: '📧'
+        },
+        {
+          id: '2',
+          category: 'software',
+          title: 'Software Downloads',
+          description: 'Essential software and applications for new joiners',
+          content: 'Microsoft Office Suite, VPN Client, Citi Banking Applications, Security Tools',
+          downloadUrl: 'https://citi-internal.com/software-portal',
+          targetPersona: ['employee', 'manager', 'director'],
+          priority: 'high',
+          icon: '💻'
+        },
+        {
+          id: '3',
+          category: 'policy',
+          title: 'Leave Policy',
+          description: 'Comprehensive leave policy including vacation, sick, and personal time',
+          content: 'Annual Leave: 25 days\nSick Leave: 10 days\nPersonal Days: 5 days\nMaternity/Paternity: 12 weeks',
+          targetPersona: ['employee', 'manager', 'director'],
+          priority: 'high',
+          icon: '🏖️'
+        },
+        {
+          id: '4',
+          category: 'policy',
+          title: 'ESPP Policy',
+          description: 'Employee Stock Purchase Plan details and enrollment',
+          content: 'Enroll in ESPP to purchase Citi shares at discounted rates. Contact benefits@citi.com for enrollment.',
+          contactEmail: 'benefits@citi.com',
+          targetPersona: ['employee', 'manager', 'director'],
+          priority: 'medium',
+          icon: '💰'
+        },
+        {
+          id: '5',
+          category: 'contact',
+          title: 'Your HR Contact',
+          description: 'Direct HR representative for your department',
+          content: `Your assigned HR representative: ${user?.department === 'Technology' ? 'sarah.johnson@citi.com' : user?.department === 'Operations' ? 'michael.chen@citi.com' : 'lisa.garcia@citi.com'}`,
+          contactEmail: 'hr-assignment@citi.com',
+          targetPersona: ['employee', 'manager', 'director'],
+          priority: 'high',
+          icon: '👥'
+        },
+        {
+          id: '10',
+          category: 'contact',
+          title: 'Find Your Buddy',
+          description: 'Buddy assignment program for new joiners',
+          content: 'Your buddy: alex.rivera@citi.com (Technology Team)\nFor buddy program queries: buddy-program@citi.com',
+          contactEmail: 'buddy-program@citi.com',
+          targetPersona: ['employee'],
+          priority: 'high',
+          icon: '🤝'
+        }
+      ];
+
+      const filteredResources = resources.filter(resource => 
+        resource.targetPersona.includes(userPersona)
+      );
+
+      res.json(filteredResources);
+    } catch (error) {
+      console.error('Error fetching onboarding resources:', error);
+      res.status(500).json({ message: 'Failed to fetch onboarding resources' });
+    }
+  });
+
+  app.get('/api/onboarding/device-requests', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      
+      const requests = [
+        {
+          id: '1',
+          userId: userId,
+          requestType: 'monitor',
+          description: 'External 27-inch monitor for better productivity',
+          urgency: 'medium',
+          status: 'approved',
+          requestedAt: new Date(Date.now() - 86400000 * 2)
+        }
+      ];
+
+      res.json(requests);
+    } catch (error) {
+      console.error('Error fetching device requests:', error);
+      res.status(500).json({ message: 'Failed to fetch device requests' });
+    }
+  });
+
+  app.post('/api/onboarding/device-request', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { requestType, description, urgency } = req.body;
+      
+      const newRequest = {
+        id: Date.now().toString(),
+        userId: userId,
+        requestType,
+        description,
+        urgency,
+        status: 'pending',
+        requestedAt: new Date()
+      };
+
+      res.json({ success: true, request: newRequest });
+    } catch (error) {
+      console.error('Error creating device request:', error);
+      res.status(500).json({ message: 'Failed to create device request' });
+    }
+  });
+
+  app.get('/api/onboarding/rampup-plan', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const user = await storage.getUser(userId);
+      const userPersona = user?.persona || 'employee';
+
+      let milestones = [];
+
+      if (userPersona === 'employee') {
+        milestones = [
+          {
+            id: '1',
+            title: 'Complete Security Training',
+            description: 'Mandatory cybersecurity awareness training and certification',
+            targetDate: new Date(Date.now() + 86400000 * 7),
+            completed: false
+          },
+          {
+            id: '2',
+            title: 'Setup Development Environment',
+            description: 'Install required software, access systems, and configure workspace',
+            targetDate: new Date(Date.now() + 86400000 * 14),
+            completed: true,
+            completedAt: new Date(Date.now() - 86400000 * 2),
+            managerFeedback: 'Great job setting up your environment quickly!'
+          },
+          {
+            id: '3',
+            title: 'Meet Your Team',
+            description: 'Schedule 1:1 meetings with all team members and key stakeholders',
+            targetDate: new Date(Date.now() + 86400000 * 21),
+            completed: false
+          }
+        ];
+      }
+
+      const rampupPlan = {
+        id: Date.now().toString(),
+        userId: userId,
+        managerId: user?.managerId || 'manager123',
+        milestones: milestones,
+        teamLunchDate: new Date(Date.now() + 86400000 * 5),
+        status: 'in_progress',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      res.json(rampupPlan);
+    } catch (error) {
+      console.error('Error fetching ramp-up plan:', error);
+      res.status(500).json({ message: 'Failed to fetch ramp-up plan' });
+    }
+  });
+
+  app.post('/api/onboarding/incident-report', requireAuth, async (req: any, res) => {
+    try {
+      const reporterId = req.session.userId;
+      const { type, title, description, severity } = req.body;
+      
+      const newReport = {
+        id: Date.now().toString(),
+        reporterId,
+        type,
+        title,
+        description,
+        severity,
+        status: 'open',
+        createdAt: new Date()
+      };
+
+      res.json({ success: true, report: newReport });
+    } catch (error) {
+      console.error('Error creating incident report:', error);
+      res.status(500).json({ message: 'Failed to create incident report' });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
