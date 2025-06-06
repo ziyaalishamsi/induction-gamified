@@ -8,14 +8,24 @@ interface TrainingTimerProps {
 function TrainingTimer({ startTime, totalHours = 4.5 }: TrainingTimerProps) {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [isExpired, setIsExpired] = useState(false);
+  const [lastStartTime, setLastStartTime] = useState(startTime);
+  const [timerKey, setTimerKey] = useState(0); // Force re-render key
 
   useEffect(() => {
     if (!startTime) return;
 
-    const interval = setInterval(() => {
+    // Reset expired state if start time changes (timer reset)
+    if (startTime !== lastStartTime) {
+      setIsExpired(false);
+      setLastStartTime(startTime);
+      setTimerKey(prev => prev + 1); // Force component re-render
+      console.log('Timer reset detected, new start time:', startTime);
+    }
+
+    const calculateTime = () => {
       const now = new Date().getTime();
       const start = new Date(startTime).getTime();
-      const totalMs = totalHours * 60 * 60 * 1000; // 4.5 hours in milliseconds
+      const totalMs = totalHours * 60 * 60 * 1000;
       const elapsed = now - start;
       const remaining = Math.max(0, totalMs - elapsed);
 
@@ -23,12 +33,18 @@ function TrainingTimer({ startTime, totalHours = 4.5 }: TrainingTimerProps) {
       
       if (remaining === 0) {
         setIsExpired(true);
-        clearInterval(interval);
+      } else {
+        setIsExpired(false); // Ensure expired state is reset when timer is active
       }
-    }, 1000);
+    };
+
+    // Calculate immediately
+    calculateTime();
+
+    const interval = setInterval(calculateTime, 1000);
 
     return () => clearInterval(interval);
-  }, [startTime, totalHours]);
+  }, [startTime, totalHours, timerKey]);
 
   const formatTime = (ms: number) => {
     const hours = Math.floor(ms / (1000 * 60 * 60));

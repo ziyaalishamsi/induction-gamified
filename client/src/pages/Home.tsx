@@ -12,6 +12,7 @@ export default function Home() {
   const [trainingStartTime, setTrainingStartTime] = useState<string | null>(null);
   const [trainingStarted, setTrainingStarted] = useState(false);
   const [showFirstTimeInstructions, setShowFirstTimeInstructions] = useState(false);
+  const [timerResetKey, setTimerResetKey] = useState(0);
   const [currentProgress, setCurrentProgress] = useState({
     completedModules: 0,
     totalXP: 0,
@@ -54,29 +55,60 @@ export default function Home() {
     );
   }
 
+  const updateServerTrainingStartTime = async (startTime: string) => {
+    try {
+      await fetch('/api/user/progress/update-start-time', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ trainingStartTime: startTime })
+      });
+    } catch (error) {
+      console.error('Failed to update server training start time:', error);
+    }
+  };
+
   useEffect(() => {
-    if (user) {
-      // Check if user has already started training
-      const savedStartTime = localStorage.getItem(`trainingStart_${user.id}`);
-      if (savedStartTime) {
-        setTrainingStartTime(savedStartTime);
+    if (user && userProgress) {
+      // Always prioritize server-side trainingStartTime
+      if (userProgress.trainingStartTime) {
+        const serverStartTime = new Date(userProgress.trainingStartTime).toISOString();
+        const currentLocalTime = localStorage.getItem(`trainingStart_${user.id}`);
+        
+        // If server time is different from local time, update immediately
+        if (currentLocalTime !== serverStartTime) {
+          setTrainingStartTime(serverStartTime);
+          localStorage.setItem(`trainingStart_${user.id}`, serverStartTime);
+          setTimerResetKey(prev => prev + 1); // Force timer component to re-render
+          console.log('Timer updated from server:', serverStartTime);
+        } else {
+          setTrainingStartTime(serverStartTime);
+        }
         setTrainingStarted(true);
       } else {
-        // Auto-start training for new users without showing instructions popup
-        const startTime = new Date().toISOString();
-        setTrainingStartTime(startTime);
-        localStorage.setItem(`trainingStart_${user.id}`, startTime);
-        setTrainingStarted(true);
+        // Check localStorage for existing start time
+        const savedStartTime = localStorage.getItem(`trainingStart_${user.id}`);
+        if (savedStartTime) {
+          setTrainingStartTime(savedStartTime);
+          setTrainingStarted(true);
+          // Sync with server
+          updateServerTrainingStartTime(savedStartTime);
+        } else {
+          // Auto-start training for new users
+          const startTime = new Date().toISOString();
+          setTrainingStartTime(startTime);
+          localStorage.setItem(`trainingStart_${user.id}`, startTime);
+          setTrainingStarted(true);
+          updateServerTrainingStartTime(startTime);
+        }
       }
 
       // Update current progress from userProgress
-      if (userProgress) {
-        setCurrentProgress({
-          completedModules: userProgress.completedMissions?.length || 0,
-          totalXP: userProgress.xp || 0,
-          level: userProgress.level || 1
-        });
-      }
+      setCurrentProgress({
+        completedModules: userProgress.completedMissions?.length || 0,
+        totalXP: userProgress.xp || 0,
+        level: userProgress.level || 1
+      });
     }
   }, [user, userProgress]);
 
@@ -87,6 +119,34 @@ export default function Home() {
     }
   }, [user, trainingStarted, refreshProgress]);
 
+  // Poll for progress updates every 5 seconds to catch admin timer resets
+  useEffect(() => {
+    if (!user) return;
+    
+    const interval = setInterval(() => {
+      refreshProgress();
+    }, 5000); // Check every 5 seconds for immediate updates
+    
+    return () => clearInterval(interval);
+  }, [user, refreshProgress]);
+
+  // Force refresh when page gains focus (user switches back to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        refreshProgress();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [user, refreshProgress]);
+
 
 
   return (
@@ -94,20 +154,33 @@ export default function Home() {
       {/* Training Timer */}
       {trainingStarted && trainingStartTime && (
         <div className="mb-6">
-          <TrainingTimer startTime={trainingStartTime} totalHours={4.5} />
+          <TrainingTimer key={timerResetKey} startTime={trainingStartTime} totalHours={4.5} />
         </div>
       )}
 
       {/* Welcome Message */}
       {trainingStarted && (
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 text-white mb-6">
-          <h1 className="text-2xl font-bold mb-2">
-            Welcome to City of Citi: Treasure Hunt, {user?.name?.split(' ')[0]}!
-          </h1>
-          <p className="text-blue-100">
-            Navigate the city map below to complete your 6 training modules within 4.5 hours.
-            Click on any building to start a training module.
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">
+                Welcome to City of Citi: Treasure Hunt, {user?.name?.split(' ')[0]}!
+              </h1>
+              <p className="text-blue-100">
+                Navigate the city map below to complete your 6 training modules within 4.5 hours.
+                Click on any building to start a training module.
+              </p>
+            </div>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => window.location.href = '/cityofciti/onboarding'}
+                className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2"
+              >
+                <span>🎯</span>
+                <span>Onboarding Hub</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
       

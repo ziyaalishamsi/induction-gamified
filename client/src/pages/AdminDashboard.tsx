@@ -23,6 +23,7 @@ export default function AdminDashboard() {
   const [modules, setModules] = useState<Module[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [activeTab, setActiveTab] = useState('modules');
+  const [users, setUsers] = useState<any[]>([]);
   const [uploadingModule, setUploadingModule] = useState<string | null>(null);
   const [showAddModule, setShowAddModule] = useState(false);
   const [newModule, setNewModule] = useState({
@@ -37,6 +38,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchModules();
     fetchStats();
+    fetchUsers();
   }, []);
 
   const handleAddModule = async () => {
@@ -94,6 +96,44 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const resetUserTimer = async (userId: string, userName: string) => {
+    if (!confirm(`Reset training timer for ${userName}? This will restart their 4.5-hour training period.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/reset-timer`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        alert(`Timer reset successfully for ${userName}`);
+        fetchUsers();
+      } else {
+        const error = await response.json();
+        alert(`Failed to reset timer: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error resetting timer:', error);
+      alert('Failed to reset timer');
     }
   };
 
@@ -171,6 +211,16 @@ export default function AdminDashboard() {
               }`}
             >
               Statistics
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'users'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              User Management
             </button>
           </nav>
         </div>
@@ -322,6 +372,106 @@ export default function AdminDashboard() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-xl font-semibold">User Management</h2>
+                <p className="text-sm text-gray-600 mt-1">Manage user training timers and progress</p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        User
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Department
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Progress
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Timer Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users.map((user) => (
+                      <tr key={user.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <span className="text-blue-600 font-medium">
+                                  {user.name.charAt(0)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                              <div className="text-sm text-gray-500">{user.username}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{user.department}</div>
+                          <div className="text-sm text-gray-500">{user.role}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {user.progress ? (
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">
+                                Level {user.progress.level} • {user.progress.xp} XP
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {user.progress.completedMissions.length} modules completed
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">No progress data</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {user.progress?.trainingStartTime ? (
+                            <div className="text-sm">
+                              <div className="text-green-600 font-medium">Active</div>
+                              <div className="text-gray-500">
+                                Started {new Date(user.progress.trainingStartTime).toLocaleDateString()}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-500">Not started</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => resetUserTimer(user.id, user.name)}
+                            className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-md transition-colors"
+                          >
+                            Reset Timer
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {users.length === 0 && (
+                  <div className="text-center py-8">
+                    <div className="text-gray-500">No users found</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
